@@ -31,7 +31,7 @@ class DataBase:
 
         self.__create_db_table_anime_download = "CREATE TABLE IF NOT EXISTS anime_download( " \
                                                 "link TEXT NOT NULL," \
-                                                "flie_id BIGINT NOT NULL)"
+                                                "file_id TEXT NOT NULL)"
 
         self.__create_db_table_series = "CREATE TABLE IF NOT EXISTS series( " \
                                         "link TEXT NOT NULL," \
@@ -87,11 +87,6 @@ class DataBase:
 
     def create_connection(self):
         return psycopg2.connect(
-            # host='localhost',
-            # user='postgres',
-            # password='root',
-            # database='animevost_ongoing',
-
             host=os.getenv('HOST', default=None),
             user=os.getenv('USER', default=None),
             password=os.getenv('PASSWORD', default=None),

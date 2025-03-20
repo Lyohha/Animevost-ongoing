@@ -1,11 +1,10 @@
 import DataBase
-import SecretInfo
 import re
 import requests
-from threading import Thread
 import telegram
 from telegram.ext import Updater
-import os
+import gc
+from io import BytesIO
 
 
 def parse_last(link):
@@ -55,89 +54,70 @@ def parse_all(link):
     }
 
 
-def get(link, user):
-    """
-    @deprecated
-    :param link:
-    :param user:
-    :return:
-    """
-    if link not in TaskManager.tasks:
-        TaskManager.tasks[link] = DownloadTask(link)
-    TaskManager.tasks[link].add_user(user)
-
-
-class TaskManager:
-    """
-    @deprecated
-    """
-    tasks = {}
-
-
-class DownloadTask:
-    """
-    @deprecated
-    """
-    def __init__(self, link):
-        # ссылка на серию
+class Download:
+    def __init__(self, link, updater=None, description=None, users=None, reply_markup=None):
         self.__link = link
-        # id скаченного файла или id сообщения для пересылки
-        self.__file = None
-        # список людей, котоыре подписались на скачивание серии
-        self.__users = []
-        # номер серии для подписи файла
-        self.__number = 0
-        # заголовок для серии
-        self.__title = self.get_title()
-        thread = Thread(target=self.run_task, args=())
-        thread.start()
+        self.__file_id = None
+        self.__users = [] if users is None else users
+        self.__description = description
+        self.__video_file = None
+        self.__file_obj = None
+        self.__updater = updater
+        self.__reply_markup = reply_markup
 
-    def run_task(self):
+    def run(self):
+        self.get_file_id()
+        clear_memory = False
+        if self.__file_id is None:
+            self.download_file()
+            clear_memory = True
+        self.send()
+        if clear_memory:
+            self.__file_obj.flush()
+            self.__file_obj.close()
+            del self.__file_obj
+            gc.collect()
 
-        if not self.get_file_id():
-            with requests.get('https://static.trn.su/' + self.__link + '.mp4', stream=True) as r:
-                r.raise_for_status()
-                with open(self.__title, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-
-        self.notify_users()
-
-    def get_title(self):
-        db = DataBase.DataBase()
-        name = db.get_series_name_by_link(self.__link)
-        if len(name) > 0:
-            return name[0][0]
-
-        return ''
+    def download_file(self):
+        response = requests.get(
+            url=self.__link,
+        )
+        match = re.search(r'class=\"butt\" download=\".+?href=\".+?\".+?>', response.text)
+        video_url = match[0].split('href="')[1].split('"')[0]
+        with requests.get(video_url, stream=True) as r:
+            r.raise_for_status()
+            # self.__file_obj = StringIO()
+            self.__file_obj = BytesIO()
+            for chunk in r.iter_content(chunk_size=8192):
+                self.__file_obj.write(chunk)
+            self.__file_obj.seek(0)
 
     def get_file_id(self):
         db = DataBase.DataBase()
         items = db.get_anime_file_id_by_link(self.__link)
         if len(items) > 0:
-            self.__file = items[0][0]
-            return True
-        return False
+            self.__file_id = items[0][0]
 
-    def add_user(self, user):
-        self.__users.append(user)
-        if self.__file is not None:
-            self.notify_users()
-
-    def notify_users(self):
-        updater = Updater(SecretInfo.TELEGRAM_HTTP_API_TOKEN, use_context=True)
-        dispatcher = updater.dispatcher
+    def send(self):
+        if self.__updater is None:
+            return
+        dispatcher = self.__updater.dispatcher
         context = telegram.ext.callbackcontext.CallbackContext(dispatcher)
-
         for user in self.__users:
-
-            if self.__file is None:
-                message = context.bot.send_document(chat_id=user, document=open(self.__title, 'rb'))
-                self.__file = message.document.file_id
+            if self.__file_id is None:
+                message = context.bot.send_video(
+                    chat_id=user, video=self.__file_obj.getbuffer().tobytes(),
+                    caption=self.__description,
+                    timeout=300,
+                    reply_markup=self.__reply_markup
+                )
+                self.__file_id = message.video.file_id
                 db = DataBase.DataBase()
-                db.insert_downloaded_anime(self.__link, self.__file)
-                os.remove(self.__title)
+                db.insert_downloaded_anime(self.__link, self.__file_id)
             else:
-                message = context.bot.send_document(chat_id=user, document=self.__file)
+                message = context.bot.send_video(
+                    chat_id=user, video=self.__file_id,
+                    caption=self.__description,
+                    reply_markup=self.__reply_markup
+                )
 
-            self.__users.remove(user)

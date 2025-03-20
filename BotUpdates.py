@@ -6,8 +6,8 @@ from telegram.ext import Updater
 
 
 class BotUpdates:
-    version = '1.3.1'
-    description = 'Обновление до версии 1.3.1:\n- Добавлена пагинация в список серий для многосерийных аниме.'
+    version = '1.4.0'
+    description = 'Обновление до версии 1.4.0:\n- При выходе новой версии бот будет отправлять видео файл вместе с уведомлением.'
 
     def __init__(self):
         updater = Updater(SecretInfo.TELEGRAM_HTTP_API_TOKEN, use_context=True)
@@ -30,4 +30,4 @@ class BotUpdates:
                     print(exe)
 
             settings.update("version", BotUpdates.version)
-        updater.stop();
+        updater.stop()

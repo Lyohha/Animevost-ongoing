@@ -82,15 +82,31 @@ class CheckRss:
                         InlineKeyboardButton('Смотреть онлайн - ' + dlink['title'], url=dlink['link720']),
                     ], ]
 
+                    users_ids = []
+
                     for chat_id in all_chats:
-                        try:
-                            message = self.context.bot.send_message(
-                                chat_id[0],
-                                text=F"Новый эпизод\n\n{elem['title']}\n\n{elem['link']}",
-                                reply_markup=InlineKeyboardMarkup(keyboard)
-                            )
-                        except Exception as exe:
-                            continue
+                        users_ids.append(chat_id[0])
+
+                    try:
+                        Downloader.Download(
+                            link=dlink['link720'],
+                            updater=self.updater,
+                            description=F"Новый эпизод\n\n{elem['title']}\n\n{elem['link']}",
+                            reply_markup=InlineKeyboardMarkup(keyboard),
+                            users=users_ids
+                        ).run()
+                    except Exception as exe:
+                        print(exe)
+                        for chat_id in all_chats:
+                            try:
+                                message = self.context.bot.send_message(
+                                    chat_id[0],
+                                    text=F"Новый эпизод\n\n{elem['title']}\n\n{elem['link']}",
+                                    reply_markup=InlineKeyboardMarkup(keyboard)
+                                )
+                            except Exception as exe2:
+                                continue
+                        continue
 
                 if dict_data['rss']['channel']['item'][len(dict_data['rss']['channel']['item']) - 1]['link'] == elem['link']:
                     if dict_data['rss']['channel']['item'][0]['link'] != self.anime_rss_last_anime:

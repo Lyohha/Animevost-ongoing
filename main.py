@@ -92,7 +92,7 @@ class WatchingFilms:
 
     def main(self):
         try:
-            updater = Updater(SecretInfo.TELEGRAM_HTTP_API_TOKEN, use_context=True)
+            updater = Updater(SecretInfo.TELEGRAM_HTTP_API_TOKEN, use_context=True, base_url='http://telegram-bot-api:8081/bot')
             dispatcher = updater.dispatcher
             self.dispatcher = dispatcher
 
